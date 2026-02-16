@@ -7,9 +7,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+*.egg
 
-# RAG metadata
+# RAG metadata & data
 rag_metadata/
+Data/
 
 # Uploads
 uploads/
@@ -23,12 +25,27 @@ node_modules/
 # Build
 dist/
 build/
+.vite/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
+# Lock files (keep pyproject.toml, but uv.lock is large)
+uv.lock
+
+# Misc
+*.log
+.gemini/
+KMS/

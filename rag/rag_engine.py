@@ -13,7 +13,7 @@ from llama_index.core import (
     StorageContext,
     Settings,
 )
-from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.node_parser import SemanticSplitterNodeParser
 from llama_index.embeddings.google_genai import GoogleGenAIEmbedding
 from llama_index.llms.cerebras import Cerebras
 from llama_index.vector_stores.pinecone import PineconeVectorStore
@@ -51,7 +51,11 @@ class RAGEngine:
             model=llm_model,
             api_key=os.getenv("CEREBRAS_API_KEY"),
         )
-        Settings.node_parser = SentenceSplitter(chunk_size=256, chunk_overlap=100)
+        Settings.node_parser = SemanticSplitterNodeParser(
+            buffer_size=1,
+            breakpoint_percentile_threshold=95,
+            embed_model=Settings.embed_model,
+        )
 
         self.index: Optional[VectorStoreIndex] = None
         self.query_engine = None
@@ -118,9 +122,23 @@ class RAGEngine:
     def _create_query_engine(self):
         """Create query engine from current index."""
         if self.index:
+            from llama_index.core.prompts import PromptTemplate
+
+            # Strict synthesis prompt — prevents RAG LLM from hallucinating
+            qa_prompt = PromptTemplate(
+                "You are answering questions using ONLY the context below.\n"
+                "Do NOT add any information that is not explicitly in the context.\n"
+                "If the context does not contain the answer, say: 'This information is not available in the provided documents.'\n"
+                "Be specific and quote details (names, numbers, titles) exactly as they appear.\n\n"
+                "Context:\n{context_str}\n\n"
+                "Question: {query_str}\n\n"
+                "Answer:"
+            )
+
             self.query_engine = self.index.as_query_engine(
                 similarity_top_k=5,
-                response_mode="tree_summarize",
+                response_mode="compact",
+                text_qa_template=qa_prompt,
             )
 
     def _load_system_prompt(self) -> str:

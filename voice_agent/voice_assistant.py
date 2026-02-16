@@ -34,13 +34,29 @@ class VoiceAssistant(Agent):
         self.kb_engine = kb_engine
         self.conv_logger = conv_logger
         self.room = room
+        self.recent_messages: list[str] = []  # Last few user messages for context
         super().__init__(
             instructions=build_system_prompt(),
         )
 
     def _should_query_kb(self, text: str) -> bool:
-        """Skip KB for very short casual messages like 'thanks' or 'bye'."""
-        return len(text.split()) > 3 or "?" in text
+        """Skip KB only for greetings/filler like 'thanks', 'bye', 'okay'."""
+        SKIP_PHRASES = {
+            "thanks", "thank you", "bye", "goodbye", "okay", "ok", "yes",
+            "no", "sure", "alright", "got it", "cool", "nice", "great",
+            "hello", "hi", "hey", "hmm", "hm", "uh", "um",
+        }
+        cleaned = text.strip().lower().rstrip(".,!?")
+        return cleaned not in SKIP_PHRASES
+
+    def _build_contextual_query(self, current_query: str) -> str:
+        """Enrich the current query with recent conversation context for better RAG retrieval."""
+        if not self.recent_messages:
+            return current_query
+        # Include last 2-3 messages as context so short follow-ups make sense
+        context_lines = self.recent_messages[-3:]
+        context = " | ".join(context_lines)
+        return f"Context: {context} | Current question: {current_query}"
 
     async def _send_data_message(self, msg_type: str, data: dict):
         """Send a data message to the room for frontend consumption."""
@@ -71,6 +87,11 @@ class VoiceAssistant(Agent):
         # Log user message
         self.conv_logger.log_user_message(user_query)
 
+        # Track recent messages for context
+        self.recent_messages.append(user_query)
+        if len(self.recent_messages) > 5:
+            self.recent_messages.pop(0)
+
         # Send transcript to frontend
         await self._send_data_message("transcript", {
             "role": "user",
@@ -82,9 +103,12 @@ class VoiceAssistant(Agent):
             logger.info("Skipping KB query (casual message)")
             return
 
-        # Layer 3: KB retrieval (dynamic RAG context)
+        # Layer 3: KB retrieval with conversation context
         try:
-            result = await self.kb_engine.aquery_with_sources(user_query)
+            enriched_query = self._build_contextual_query(user_query)
+            logger.info(f"KB query (enriched): {enriched_query}")
+
+            result = await self.kb_engine.aquery_with_sources(enriched_query)
             rag_context = result["answer"]
             sources = result["sources"]
 
@@ -106,3 +130,4 @@ class VoiceAssistant(Agent):
         except Exception as e:
             logger.error(f"KB retrieval failed: {e}")
             # Continue without KB context — LLM responds from training data
+

@@ -52,8 +52,8 @@ class RAGEngine:
             api_key=os.getenv("CEREBRAS_API_KEY"),
         )
         Settings.node_parser = SemanticSplitterNodeParser(
-            buffer_size=1,
-            breakpoint_percentile_threshold=95,
+            buffer_size=3,
+            breakpoint_percentile_threshold=90,
             embed_model=Settings.embed_model,
         )
 
@@ -136,7 +136,7 @@ class RAGEngine:
             )
 
             self.query_engine = self.index.as_query_engine(
-                similarity_top_k=5,
+                similarity_top_k=10,
                 response_mode="compact",
                 text_qa_template=qa_prompt,
             )

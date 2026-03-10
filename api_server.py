@@ -58,7 +58,7 @@ def get_rag_engine():
             prompt_file="Prompt/prompt.md",
             index_name="knowledge-base",
             embedding_model="gemini-embedding-001",
-            llm_model="llama-3.3-70b",
+            llm_model="llama3.1-8b",
         )
         logger.info("RAG engine initialized")
     return rag_engine
